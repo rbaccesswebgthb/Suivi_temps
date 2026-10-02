@@ -51,13 +51,47 @@ h3.moisTitre{margin:18px 0 4px;font-size:15px;color:var(--accent)}
 #toast{position:fixed;left:12px;right:12px;bottom:calc(16px + env(safe-area-inset-bottom));max-width:520px;margin:auto;padding:12px 16px;border-radius:var(--r);background:var(--moins);color:#fff;font-weight:600;z-index:9}
 #toast.err{background:#fbe9e0;border:1px solid var(--plus);color:#7a3410}
 #toast[hidden]{display:none}
+
+html{-webkit-text-size-adjust:100%}
+body{-webkit-tap-highlight-color:transparent}
+button,a,summary{touch-action:manipulation}
+button:hover{filter:brightness(1.12)}button.lien:hover{filter:none}
+tbody tr:hover td{background:#f5f9fb}tr.cat:hover td{background:#e3ecf1}
+header{padding-left:max(20px,env(safe-area-inset-left));padding-right:max(20px,env(safe-area-inset-right))}
+.onglets .sm{display:none}
+@media(min-width:1000px){main,.onglets{max-width:1200px}section{padding:20px 24px}}
+@media(max-width:700px){
+body{font-size:16px}
+.onglets{position:fixed;left:0;right:0;bottom:0;margin:0;padding:0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);gap:0;background:#fff;border-top:1px solid var(--trait);box-shadow:0 -2px 8px rgba(0,0,0,.08);z-index:8;overflow:visible;max-width:none}
+.onglets a{flex:1;min-width:0;text-align:center;border:0;border-top:3px solid transparent;border-radius:0;background:none;padding:12px 2px;font-size:12px}
+.onglets a.actif{border-top-color:var(--accent);background:#eef5f8}
+.onglets .lg{display:none}.onglets .sm{display:inline}
+main{padding:12px 10px calc(84px + env(safe-area-inset-bottom));margin-top:0}
+section{padding:14px 12px}
+#toast{bottom:calc(72px + env(safe-area-inset-bottom))}
+.grille{grid-template-columns:1fr 1fr}
+.grille>div,.grille>label:not(:has(input[type=time])){grid-column:1/-1}
+button{width:100%;min-height:44px}button.lien{width:auto;min-height:0}
+table.rc,table.rs,table.rl,table.rc tbody,table.rs tbody,table.rl tbody{display:block}
+table.rc thead,table.rs thead,table.rl thead{display:none}
+table.rc tr,table.rs tr,table.rl tr{display:block;border:1px solid var(--trait);border-radius:var(--r);margin-bottom:10px;padding:4px 0}
+table.rc td,table.rs td,table.rl td{display:flex;justify-content:space-between;align-items:center;gap:12px;border:0;padding:5px 12px;text-align:right;white-space:normal}
+table.rc td::before,table.rs td::before,table.rl td::before{color:var(--doux);font-size:13px;font-weight:600;text-align:left}
+table.rc td:first-child,table.rl td:first-child{font-weight:700;color:var(--accent);justify-content:flex-start;border-bottom:1px solid var(--trait);margin-bottom:2px}
+table.rc tr.cat{background:#e3ecf1;border-color:var(--accent)}table.rc tr.cat td{background:none;border-color:var(--trait)}
+tr.inactif{display:none!important}
+table.rl td:last-child{display:block;text-align:left}
+table.rc td:nth-child(2)::before{content:"Heures supp. travail"}table.rc td:nth-child(3)::before{content:"CSE hors délégation"}table.rc td:nth-child(4)::before{content:"Dont hors temps de travail"}table.rc td:nth-child(5)::before{content:"Délégation CSE"}table.rc td:nth-child(6)::before{content:"Crédit de délégation"}table.rc td:nth-child(7)::before{content:"Heures supp. délégation"}
+table.rs td:nth-child(1)::before{content:"Heures supp. de l'année"}table.rs td:nth-child(2)::before{content:"Vérifiées par la RH"}table.rs td:nth-child(3)::before{content:"À vérifier"}table.rs td:nth-child(4)::before{content:"Payées"}table.rs td:nth-child(5)::before{content:"En récupération"}table.rs td:nth-child(6)::before{content:"Autogestion (hors RH)"}table.rs td:nth-child(7)::before{content:"Non précisée"}
+table.rl td:nth-child(2)::before{content:"Catégorie"}table.rl td:nth-child(3)::before{content:"Horaires"}table.rl td:nth-child(4)::before{content:"Durée"}table.rl td:nth-child(5)::before{content:"Statut"}
+}
 </style>
 </head>
 <body>
 <header><h1>Suivi du temps</h1><p>Activité professionnelle, délégation CSE et CSE hors délégation</p></header>
 <nav class="onglets">
   <a href="#saisie" data-t="saisie">Saisie</a>
-  <a href="#recap" data-t="recap">Récapitulatif</a>
+  <a href="#recap" data-t="recap"><span class="lg">Récapitulatif</span><span class="sm">Récap.</span></a>
   <a href="#historique" data-t="historique">Historique</a>
   <a href="#rh" data-t="rh">Suivi RH<span id="badge"></span></a>
   <a href="#donnees" data-t="donnees">Données</a>
@@ -140,8 +174,8 @@ const champs=s=>`<label>Catégorie<select name="cat">${Object.entries(CATS).map(
 function rSaisie(){$('#saisie').innerHTML=`<h2>Ajouter une saisie de temps</h2><form class="grille" data-a="ajout">${champs({date:aujourdhui()})}<div><button>Enregistrer la saisie</button></div></form>`;}
 function rRecap(){
   const{mois,an,credit}=calc();
-  $('#recap').innerHTML=`<h2>Décompte mensuel ${S.annee}</h2><div class="grille" style="margin-bottom:10px">${anneeLbl()}</div><div class="scroll"><table><thead><tr><th>Mois</th><th class="n">Heures supp. travail (activité pro)</th><th class="n">CSE hors délégation</th><th class="n">dont hors temps de travail (convocation employeur)</th><th class="n">Délégation CSE</th><th class="n">Crédit de délégation</th><th class="n">Heures supp. délégation (hors temps de travail)</th></tr></thead><tbody>`
-  +NOMS.map((nm,k)=>{const m=mois[k+1],actif=m.pro+m.cse+m.deleg>0;return `<tr><td>${up(nm)}</td><td class="n ${m.pro?'plus':'zero'}">${hm(m.pro)}</td><td class="n">${hm(m.cse)}</td><td class="n ${m.horscse?'plus':'zero'}">${hm(m.horscse)}</td><td class="n">${hm(m.deleg)}</td>${actif&&credit?cellLib(m.deleg-credit,'dépassement','reste'):'<td class="n zero">–</td>'}<td class="n ${m.hors?'plus':'zero'}">${hm(m.hors)}</td></tr>`;}).join('')
+  $('#recap').innerHTML=`<h2>Décompte mensuel ${S.annee}</h2><div class="grille" style="margin-bottom:10px">${anneeLbl()}</div><div class="scroll"><table class="rc"><thead><tr><th>Mois</th><th class="n">Heures supp. travail (activité pro)</th><th class="n">CSE hors délégation</th><th class="n">dont hors temps de travail (convocation employeur)</th><th class="n">Délégation CSE</th><th class="n">Crédit de délégation</th><th class="n">Heures supp. délégation (hors temps de travail)</th></tr></thead><tbody>`
+  +NOMS.map((nm,k)=>{const m=mois[k+1],actif=m.pro+m.cse+m.deleg>0;return `<tr class="${actif?'':'inactif'}"><td>${up(nm)}</td><td class="n ${m.pro?'plus':'zero'}">${hm(m.pro)}</td><td class="n">${hm(m.cse)}</td><td class="n ${m.horscse?'plus':'zero'}">${hm(m.horscse)}</td><td class="n">${hm(m.deleg)}</td>${actif&&credit?cellLib(m.deleg-credit,'dépassement','reste'):'<td class="n zero">–</td>'}<td class="n ${m.hors?'plus':'zero'}">${hm(m.hors)}</td></tr>`;}).join('')
   +`<tr class="cat"><td>Total ${S.annee}</td><td class="n">${hm(an.pro)}</td><td class="n">${hm(an.cse)}</td><td class="n">${hm(an.horscse)}</td><td class="n">${hm(an.deleg)}</td>${credit?cellLib(an.depass,'dépassement','reste'):'<td class="n zero">–</td>'}<td class="n">${hm(an.hors)}</td></tr></tbody></table></div>
 <p class="note">Heures supp. travail = heures saisies dans « Activité professionnelle » (cette catégorie sert uniquement à noter les heures supplémentaires). CSE hors délégation est compris dans le temps de travail ; la colonne « dont hors temps de travail » compte les réunions hors horaires sur convocation de l'employeur. Heures supp. délégation = saisies de délégation cochées « hors temps de travail ». Le crédit de délégation n'est comparé que pour les mois avec des saisies.</p>
 <form class="grille" data-a="reglages" style="margin-top:16px"><label>Crédit mensuel de délégation CSE<input name="credit" value="${hm(credit)}" required></label><div><button>Enregistrer le réglage</button></div></form>`;
@@ -162,10 +196,10 @@ function rRh(){
   const{rh,listeRh}=calc(),av=rh.total-rh.verif-rh.auto;
   const opt=(v,l)=>`<option value="${v}"${S.statut===v?' selected':''}>${l}</option>`;
   let h=`<h2>Suivi RH des heures supplémentaires ${S.annee}</h2><div class="grille" style="margin-bottom:10px">${anneeLbl()}<label>Afficher<select data-f="statut">${opt('','Toutes')}${opt('averifier','À vérifier')}${opt('verifie','Vérifiées')}${opt('auto','Autogestion')}</select></label></div>
-<div class="scroll"><table><thead><tr><th class="n">Heures supp. de l'année</th><th class="n">Vérifiées par la RH</th><th class="n">À vérifier</th><th class="n">Payées</th><th class="n">En récupération</th><th class="n">Autogestion (hors RH)</th><th class="n">Compensation non précisée</th></tr></thead><tbody><tr><td class="n">${hm(rh.total)}</td><td class="n moins">${hm(rh.verif)}</td><td class="n ${av?'plus':'zero'}">${hm(av)}</td><td class="n">${hm(rh.paie)}</td><td class="n">${hm(rh.rec)}</td><td class="n">${hm(rh.auto)}</td><td class="n">${hm(rh.aucune)}</td></tr></tbody></table></div>
+<div class="scroll"><table class="rs"><thead><tr><th class="n">Heures supp. de l'année</th><th class="n">Vérifiées par la RH</th><th class="n">À vérifier</th><th class="n">Payées</th><th class="n">En récupération</th><th class="n">Autogestion (hors RH)</th><th class="n">Compensation non précisée</th></tr></thead><tbody><tr><td class="n">${hm(rh.total)}</td><td class="n moins">${hm(rh.verif)}</td><td class="n ${av?'plus':'zero'}">${hm(av)}</td><td class="n">${hm(rh.paie)}</td><td class="n">${hm(rh.rec)}</td><td class="n">${hm(rh.auto)}</td><td class="n">${hm(rh.aucune)}</td></tr></tbody></table></div>
 <p class="note">Heures supplémentaires = activité professionnelle + délégation prise hors temps de travail + réunions CSE hors délégation prises hors temps de travail (convocation employeur). Cochez « Vérifié RH » quand le paiement ou la récupération apparaît bien sur la fiche de paie ou le compteur de récupération. Les heures en « Autogestion » ne passent pas par la RH : elles ne sont ni à vérifier ni comptées comme vérifiées.</p>`;
   if(!listeRh.length)h+='<p class="vide">Aucune heure supplémentaire à afficher.</p>';
-  else h+=`<div class="scroll"><table><thead><tr><th>Date</th><th>Catégorie</th><th>Horaires</th><th class="n">Durée</th><th>Statut</th><th>Compensation et vérification</th></tr></thead><tbody>`+listeRh.map(s=>`<tr><td>${fd(s.date)}</td><td>${s.cat==='pro'?'Heures supp. travail':s.cat==='cse'?'Réunion hors temps de travail (convocation employeur)':'Délégation hors temps de travail'}</td><td>${s.debut?e(s.debut+'–'+s.fin):'–'}</td><td class="n">${hm(s.minutes)}</td><td class="${s.comp==='auto'?'zero':s.verif?'moins':'plus'}">${s.comp==='auto'?'Autogestion':s.verif?'Vérifié':'À vérifier'}</td><td><form data-a="rh" data-id="${s.id}" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${compSel(s.comp,'style="width:auto"')}<label class="ck"><input type="checkbox" name="verif"${s.verif?' checked':''}> Vérifié RH</label><button>Enregistrer</button></form></td></tr>`).join('')+'</tbody></table></div>';
+  else h+=`<div class="scroll"><table class="rl"><thead><tr><th>Date</th><th>Catégorie</th><th>Horaires</th><th class="n">Durée</th><th>Statut</th><th>Compensation et vérification</th></tr></thead><tbody>`+listeRh.map(s=>`<tr><td>${fd(s.date)}</td><td>${s.cat==='pro'?'Heures supp. travail':s.cat==='cse'?'Réunion hors temps de travail (convocation employeur)':'Délégation hors temps de travail'}</td><td>${s.debut?e(s.debut+'–'+s.fin):'–'}</td><td class="n">${hm(s.minutes)}</td><td class="${s.comp==='auto'?'zero':s.verif?'moins':'plus'}">${s.comp==='auto'?'Autogestion':s.verif?'Vérifié':'À vérifier'}</td><td><form data-a="rh" data-id="${s.id}" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${compSel(s.comp,'style="width:auto"')}<label class="ck"><input type="checkbox" name="verif"${s.verif?' checked':''}> Vérifié RH</label><button>Enregistrer</button></form></td></tr>`).join('')+'</tbody></table></div>';
   $('#rh').innerHTML=h;
   const nb=D.saisies.filter(s=>hs(s)&&s.comp!=='auto'&&!s.verif).length;$('#badge').textContent=nb?' ('+nb+')':'';
 }
