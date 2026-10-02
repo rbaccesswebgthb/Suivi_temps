@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f5c78">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Suivi temps">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/icon-192.png">
+<title>Suivi du temps</title>
+<style>
+:root{--fond:#eef2f5;--carte:#fff;--encre:#17252f;--doux:#5d6d78;--trait:#d3dce2;--accent:#0f5c78;--plus:#b4531a;--moins:#1d7a52;--r:6px}
+*{box-sizing:border-box}
+body{margin:0;background:var(--fond);color:var(--encre);font:15px/1.5 "Segoe UI",system-ui,-apple-system,Roboto,sans-serif}
+header{background:var(--accent);color:#fff;padding:calc(14px + env(safe-area-inset-top)) 20px 14px}
+header h1{margin:0;font-size:22px;font-weight:650}
+header p{margin:2px 0 0;opacity:.85;font-size:14px}
+main{max-width:1100px;margin:0 auto;padding:0 12px calc(48px + env(safe-area-inset-bottom));display:grid;gap:20px;margin-top:-1px}
+section{background:var(--carte);border:1px solid var(--trait);border-radius:var(--r);padding:16px}
+section[hidden]{display:none}
+h2{margin:0 0 12px;font-size:17px}
+table{width:100%;border-collapse:collapse}
+th,td{padding:8px 10px;border-bottom:1px solid var(--trait);text-align:left;vertical-align:top}
+th{font-size:13px;color:var(--doux);font-weight:600}
+.n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+tr.cat td{background:#e3ecf1;font-weight:650;border-top:2px solid var(--accent)}
+.plus{color:var(--plus);font-weight:600}.moins{color:var(--moins);font-weight:600}.zero{color:var(--doux)}
+td small{font-weight:400;color:var(--doux)}
+.note{color:var(--doux);font-size:13px}
+.scroll{overflow-x:auto}
+.grille{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;align-items:end}
+label{display:grid;gap:3px;font-size:13px;color:var(--doux)}
+label.ck{display:flex;gap:8px;align-items:center}
+input,select,textarea{font:inherit;font-size:16px;padding:8px 9px;border:1px solid var(--trait);border-radius:var(--r);background:#fff;color:var(--encre);width:100%}
+input[type=checkbox]{width:auto}
+textarea{resize:vertical;min-height:44px}
+.large{grid-column:1/-1}
+button{font:inherit;cursor:pointer;border:0;border-radius:var(--r);padding:10px 16px;background:var(--accent);color:#fff;font-weight:600}
+button.lien{background:none;color:var(--doux);padding:6px;font-weight:400;text-decoration:underline}
+:focus-visible{outline:3px solid #f0b429;outline-offset:1px}
+.vide{color:var(--doux);padding:8px 0}
+.onglets{max-width:1100px;margin:12px auto 0;padding:0 12px;display:flex;gap:6px;overflow-x:auto}
+.onglets a{padding:9px 16px;border:1px solid var(--trait);border-bottom:0;border-radius:var(--r) var(--r) 0 0;background:#dfe7ec;color:var(--doux);text-decoration:none;font-weight:600;white-space:nowrap}
+.onglets a.actif{background:var(--carte);color:var(--accent)}
+details.saisie{border-bottom:1px solid var(--trait);padding:8px 0}
+details.saisie summary{cursor:pointer}
+h3.moisTitre{margin:18px 0 4px;font-size:15px;color:var(--accent)}
+#toast{position:fixed;left:12px;right:12px;bottom:calc(16px + env(safe-area-inset-bottom));max-width:520px;margin:auto;padding:12px 16px;border-radius:var(--r);background:var(--moins);color:#fff;font-weight:600;z-index:9}
+#toast.err{background:#fbe9e0;border:1px solid var(--plus);color:#7a3410}
+#toast[hidden]{display:none}
+</style>
+</head>
+<body>
+<header><h1>Suivi du temps</h1><p>Activité professionnelle, délégation CSE et CSE hors délégation</p></header>
+<nav class="onglets">
+  <a href="#saisie" data-t="saisie">Saisie</a>
+  <a href="#recap" data-t="recap">Récapitulatif</a>
+  <a href="#historique" data-t="historique">Historique</a>
+  <a href="#rh" data-t="rh">Suivi RH<span id="badge"></span></a>
+  <a href="#donnees" data-t="donnees">Données</a>
+</nav>
+<main>
+  <section id="saisie"></section>
+  <section id="recap" hidden></section>
+  <section id="historique" hidden></section>
+  <section id="rh" hidden></section>
+  <section id="donnees" hidden></section>
+</main>
+<div id="toast" role="status" hidden></div>
+<script>
+const CATS={pro:'Activité professionnelle (heures supplémentaires uniquement)',deleg:'Délégation CSE',cse:'CSE hors délégation'};
+const NOMS=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+const KEY='suivi-temps-v1',KEYSAUV='suivi-temps-derniere-sauvegarde',IDS=['saisie','recap','historique','rh','donnees'];
+const $=s=>document.querySelector(s);
+const e=s=>String(s??'').replace(/[&<>"']/g,c=>'&#'+c.charCodeAt(0)+';');
+const up=s=>s[0].toUpperCase()+s.slice(1);
+const S={annee:new Date().getFullYear(),mois:0,statut:''};
+const aujourdhui=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
+const fd=d=>d.split('-').reverse().join('/');
+function dateValide(s){if(typeof s!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(s))return false;const d=new Date(s+'T00:00:00Z');return !isNaN(d)&&d.toISOString().slice(0,10)===s;}
+function minutes(s){
+  s=String(s).trim().replace(/,/g,'.').replace(/−/g,'-').toLowerCase();
+  let m=s.match(/^(-?\d+)\s*(?:h|:)\s*(\d{0,2})$/);
+  if(m){const v=Math.abs(parseInt(m[1],10))*60+(m[2]===''?0:parseInt(m[2],10));return m[1][0]==='-'?-v:v;}
+  m=s.match(/^(-?\d+)\s*min$/);if(m)return parseInt(m[1],10);
+  return /^-?(\d+\.?\d*|\.\d+)$/.test(s)?Math.round(parseFloat(s)*60):null;
+}
+function hm(m,signe=false){const p=m<0?'−':(signe&&m>0?'+':'');const a=Math.abs(m);return p+Math.floor(a/60)+'h'+String(a%60).padStart(2,'0');}
+function normaliser(d){
+  const r={saisies:[],next:1,reglages:{credit:0}};
+  if(!d||typeof d!=='object'||Array.isArray(d))return r;
+  const cats={};(Array.isArray(d.activites)?d.activites:[]).forEach(a=>{if(a)cats[a.id]=a.cat;});
+  r.reglages.credit=Number((d.reglages||{}).credit)||0;
+  r.saisies=(Array.isArray(d.saisies)?d.saisies:[]).filter(s=>s&&typeof s==='object').map(o=>{
+    const s={...o};
+    if(!s.cat)s.cat=cats[s.act]||'pro';
+    if(!s.m2){s.m2=true;if(s.cat==='cse'&&String(s.note||'').includes('· hors temps de travail'))s.hors=true;}
+    if(!('comp' in s)){const n=String(s.note||''),m=n.match(/compensation : (REC|Paie)/);s.comp=m?m[1].toLowerCase():'';s.verif=n.includes('· Vérifié');}
+    s.note=String(s.note||'');s.comp=s.comp||'';s.minutes=typeof s.minutes==='number'?s.minutes:NaN;
+    return s;});
+  let max=0;r.saisies.forEach(s=>{if(Number.isInteger(s.id))max=Math.max(max,s.id);});
+  r.next=Math.max(Number.isInteger(d.next)?d.next:1,max+1);
+  r.saisies.forEach(s=>{if(!Number.isInteger(s.id))s.id=r.next++;});
+  return r;
+}
+const estValide=s=>dateValide(s.date)&&Number.isFinite(s.minutes)&&Object.keys(CATS).includes(s.cat);
+function charger(){try{return normaliser(JSON.parse(localStorage.getItem(KEY)));}catch(x){return normaliser(null);}}
+let D=charger();
+function save(){try{localStorage.setItem(KEY,JSON.stringify(D));return true;}catch(x){info("Impossible d'enregistrer sur cet appareil (stockage plein ou bloqué).",true);return false;}}
+let tt;function info(t,err=false){const el=$('#toast');el.textContent=t;el.className=err?'err':'';el.hidden=false;clearTimeout(tt);tt=setTimeout(()=>el.hidden=true,err?8000:3000);}
+
+function calc(){
+  const mois=Array.from({length:13},()=>({pro:0,cse:0,deleg:0,hors:0,horscse:0}));
+  const liste=[],an={pro:0,cse:0,deleg:0,hors:0,horscse:0,depass:0},credit=D.reglages.credit;
+  D.saisies.forEach(s=>{if(+s.date.slice(0,4)!==S.annee)return;liste.push(s);const i=+s.date.slice(5,7);mois[i][s.cat]+=s.minutes;if(s.hors)mois[i][s.cat==='cse'?'horscse':'hors']+=s.minutes;});
+  for(let i=1;i<13;i++){const m=mois[i];['pro','cse','deleg','hors','horscse'].forEach(k=>an[k]+=m[k]);if(m.pro+m.cse+m.deleg)an.depass+=m.deleg-credit;}
+  liste.sort((a,b)=>(b.date+(b.debut||'')+String(b.id).padStart(9,'0')).localeCompare(a.date+(a.debut||'')+String(a.id).padStart(9,'0')));
+  const rh={total:0,verif:0,paie:0,rec:0,auto:0,aucune:0},listeRh=[];
+  liste.forEach(s=>{if(!hs(s))return;rh.total+=s.minutes;if(s.comp!=='auto'&&s.verif)rh.verif+=s.minutes;rh[s.comp||'aucune']+=s.minutes;
+    const et=s.comp==='auto'?'auto':(s.verif?'verifie':'averifier');if(S.statut===''||S.statut===et)listeRh.push(s);});
+  return{mois,an,liste,rh,listeRh,credit};
+}
+const hs=s=>s.cat==='pro'||!!s.hors;
+const cellLib=(v,p,n)=>`<td class="n ${v>0?'plus':v<0?'moins':'zero'}">${hm(v,true)} <small>${v>0?p:v<0?n:''}</small></td>`;
+const compSel=(v,st='')=>`<select name="comp" ${st}><option value="">Non précisée</option><option value="paie"${v==='paie'?' selected':''}>Payée (paie)</option><option value="rec"${v==='rec'?' selected':''}>Récupération (REC)</option><option value="auto"${v==='auto'?' selected':''}>Autogestion (hors RH)</option></select>`;
+const anneeLbl=()=>`<label>Année<input type="number" data-f="annee" value="${S.annee}" min="2000" max="2100"></label>`;
+const champs=s=>`<label>Catégorie<select name="cat">${Object.entries(CATS).map(([k,l])=>`<option value="${k}"${s.cat===k?' selected':''}>${l}</option>`).join('')}</select></label>
+<label>Date<input type="date" name="date" value="${s.date}" required></label>
+<label>Heure de début<input type="time" name="debut" value="${s.debut||''}"></label>
+<label>Heure de fin<input type="time" name="fin" value="${s.fin||''}"></label>
+<label>Ou durée, sans heures (1h30, 45min)<input name="duree" value="${s.debut||s.minutes==null?'':hm(s.minutes)}" placeholder="1h30"></label>
+<label class="ck"><input type="checkbox" name="hors"${s.hors?' checked':''}> Prise hors temps de travail (délégation, ou réunion sur convocation de l'employeur)</label>
+<label>Heures supp. : compensation${compSel(s.comp)}</label>
+<label class="ck"><input type="checkbox" name="verif"${s.verif?' checked':''}> Vérifié auprès de la RH</label>
+<label class="large">Précisions (facultatif)<textarea name="note" placeholder="Objet, réunion, lieu, déplacement…">${e(s.note)}</textarea></label>`;
+
+function rSaisie(){$('#saisie').innerHTML=`<h2>Ajouter une saisie de temps</h2><form class="grille" data-a="ajout">${champs({date:aujourdhui()})}<div><button>Enregistrer la saisie</button></div></form>`;}
+function rRecap(){
+  const{mois,an,credit}=calc();
+  $('#recap').innerHTML=`<h2>Décompte mensuel ${S.annee}</h2><div class="grille" style="margin-bottom:10px">${anneeLbl()}</div><div class="scroll"><table><thead><tr><th>Mois</th><th class="n">Heures supp. travail (activité pro)</th><th class="n">CSE hors délégation</th><th class="n">dont hors temps de travail (convocation employeur)</th><th class="n">Délégation CSE</th><th class="n">Crédit de délégation</th><th class="n">Heures supp. délégation (hors temps de travail)</th></tr></thead><tbody>`
+  +NOMS.map((nm,k)=>{const m=mois[k+1],actif=m.pro+m.cse+m.deleg>0;return `<tr><td>${up(nm)}</td><td class="n ${m.pro?'plus':'zero'}">${hm(m.pro)}</td><td class="n">${hm(m.cse)}</td><td class="n ${m.horscse?'plus':'zero'}">${hm(m.horscse)}</td><td class="n">${hm(m.deleg)}</td>${actif&&credit?cellLib(m.deleg-credit,'dépassement','reste'):'<td class="n zero">–</td>'}<td class="n ${m.hors?'plus':'zero'}">${hm(m.hors)}</td></tr>`;}).join('')
+  +`<tr class="cat"><td>Total ${S.annee}</td><td class="n">${hm(an.pro)}</td><td class="n">${hm(an.cse)}</td><td class="n">${hm(an.horscse)}</td><td class="n">${hm(an.deleg)}</td>${credit?cellLib(an.depass,'dépassement','reste'):'<td class="n zero">–</td>'}<td class="n">${hm(an.hors)}</td></tr></tbody></table></div>
+<p class="note">Heures supp. travail = heures saisies dans « Activité professionnelle » (cette catégorie sert uniquement à noter les heures supplémentaires). CSE hors délégation est compris dans le temps de travail ; la colonne « dont hors temps de travail » compte les réunions hors horaires sur convocation de l'employeur. Heures supp. délégation = saisies de délégation cochées « hors temps de travail ». Le crédit de délégation n'est comparé que pour les mois avec des saisies.</p>
+<form class="grille" data-a="reglages" style="margin-top:16px"><label>Crédit mensuel de délégation CSE<input name="credit" value="${hm(credit)}" required></label><div><button>Enregistrer le réglage</button></div></form>`;
+}
+function rHist(){
+  const{mois,liste}=calc(),L=S.mois?liste.filter(s=>+s.date.slice(5,7)===S.mois):liste;
+  let h=`<h2>Historique des saisies</h2><div class="grille" style="margin-bottom:10px">${anneeLbl()}<label>Mois<select data-f="mois"><option value="0">Toute l'année</option>${NOMS.map((n,k)=>`<option value="${k+1}"${S.mois===k+1?' selected':''}>${up(n)}</option>`).join('')}</select></label></div>`;
+  if(!L.length)h+='<p class="vide">Aucune saisie pour cette période.</p>';
+  let dern=0;
+  L.forEach(s=>{const im=+s.date.slice(5,7);
+    if(im!==dern){dern=im;const m=mois[im];h+=`<h3 class="moisTitre">${up(NOMS[im-1])} ${S.annee} <span class="note">· total ${hm(m.pro+m.cse+m.deleg)}</span></h3>`;}
+    h+=`<details class="saisie"><summary><b>${fd(s.date)}</b> — ${e(CATS[s.cat])} — ${s.debut?e(s.debut+'–'+s.fin)+', ':''}${hm(s.minutes)}${s.hors?' <small class="plus">(hors temps de travail)</small>':''}${s.note?' <span class="note">· '+e(s.note.length>60?s.note.slice(0,59)+'…':s.note)+'</span>':''}</summary>
+<form class="grille" data-a="modif" data-id="${s.id}" style="margin-top:8px">${champs(s)}<div><button>Enregistrer les modifications</button></div></form>
+<button class="lien" data-suppr="${s.id}">Supprimer cette saisie</button></details>`;});
+  $('#historique').innerHTML=h;
+}
+function rRh(){
+  const{rh,listeRh}=calc(),av=rh.total-rh.verif-rh.auto;
+  const opt=(v,l)=>`<option value="${v}"${S.statut===v?' selected':''}>${l}</option>`;
+  let h=`<h2>Suivi RH des heures supplémentaires ${S.annee}</h2><div class="grille" style="margin-bottom:10px">${anneeLbl()}<label>Afficher<select data-f="statut">${opt('','Toutes')}${opt('averifier','À vérifier')}${opt('verifie','Vérifiées')}${opt('auto','Autogestion')}</select></label></div>
+<div class="scroll"><table><thead><tr><th class="n">Heures supp. de l'année</th><th class="n">Vérifiées par la RH</th><th class="n">À vérifier</th><th class="n">Payées</th><th class="n">En récupération</th><th class="n">Autogestion (hors RH)</th><th class="n">Compensation non précisée</th></tr></thead><tbody><tr><td class="n">${hm(rh.total)}</td><td class="n moins">${hm(rh.verif)}</td><td class="n ${av?'plus':'zero'}">${hm(av)}</td><td class="n">${hm(rh.paie)}</td><td class="n">${hm(rh.rec)}</td><td class="n">${hm(rh.auto)}</td><td class="n">${hm(rh.aucune)}</td></tr></tbody></table></div>
+<p class="note">Heures supplémentaires = activité professionnelle + délégation prise hors temps de travail + réunions CSE hors délégation prises hors temps de travail (convocation employeur). Cochez « Vérifié RH » quand le paiement ou la récupération apparaît bien sur la fiche de paie ou le compteur de récupération. Les heures en « Autogestion » ne passent pas par la RH : elles ne sont ni à vérifier ni comptées comme vérifiées.</p>`;
+  if(!listeRh.length)h+='<p class="vide">Aucune heure supplémentaire à afficher.</p>';
+  else h+=`<div class="scroll"><table><thead><tr><th>Date</th><th>Catégorie</th><th>Horaires</th><th class="n">Durée</th><th>Statut</th><th>Compensation et vérification</th></tr></thead><tbody>`+listeRh.map(s=>`<tr><td>${fd(s.date)}</td><td>${s.cat==='pro'?'Heures supp. travail':s.cat==='cse'?'Réunion hors temps de travail (convocation employeur)':'Délégation hors temps de travail'}</td><td>${s.debut?e(s.debut+'–'+s.fin):'–'}</td><td class="n">${hm(s.minutes)}</td><td class="${s.comp==='auto'?'zero':s.verif?'moins':'plus'}">${s.comp==='auto'?'Autogestion':s.verif?'Vérifié':'À vérifier'}</td><td><form data-a="rh" data-id="${s.id}" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${compSel(s.comp,'style="width:auto"')}<label class="ck"><input type="checkbox" name="verif"${s.verif?' checked':''}> Vérifié RH</label><button>Enregistrer</button></form></td></tr>`).join('')+'</tbody></table></div>';
+  $('#rh').innerHTML=h;
+  const nb=D.saisies.filter(s=>hs(s)&&s.comp!=='auto'&&!s.verif).length;$('#badge').textContent=nb?' ('+nb+')':'';
+}
+function rDon(){
+  let der=null;try{der=localStorage.getItem(KEYSAUV);}catch(x){}
+  $('#donnees').innerHTML=`<h2>Sauvegarde et restauration</h2>
+<p>Vos données sont stockées uniquement sur cet appareil : <b>${D.saisies.length} saisie(s)</b>. Dernière sauvegarde : <b>${der?new Date(der).toLocaleString('fr-FR'):'jamais'}</b>.</p>
+<p><button data-exporter>Exporter mes données (.json)</button></p>
+<p class="note">Le fichier exporté a le même format que l'ancien data.json.</p>
+<h2 style="margin-top:22px">Restaurer un fichier .json</h2>
+<label>Choisir le fichier de données<input type="file" id="fichier" accept=".json,application/json"></label>
+<p class="note">La restauration remplace toutes les données actuelles (confirmation demandée). Exportez d'abord si vous voulez les conserver.</p>
+<h2 style="margin-top:22px">Installer sur l'écran d'accueil</h2>
+<p class="note">Android (Chrome) : menu ⋮ → « Installer l'application ». iPhone (Safari) : Partager → « Sur l'écran d'accueil ».</p>`;
+}
+const rendreTout=()=>{rRecap();rHist();rRh();rDon();};
+function onglet(){let t=location.hash.slice(1);if(!IDS.includes(t))t='saisie';IDS.forEach(i=>{$('#'+i).hidden=i!==t;document.querySelector('[data-t='+i+']').classList.toggle('actif',i===t);});}
+function fiche(f){
+  const cat=f.get('cat')||'',re=/^([01]\d|2[0-3]):[0-5]\d$/;let hd=f.get('debut')||'',hf=f.get('fin')||'',m;
+  if(re.test(hd)&&re.test(hf)){m=(+hf.slice(0,2)*60+ +hf.slice(3))-(+hd.slice(0,2)*60+ +hd.slice(3));if(m<0)m+=1440;}
+  else{m=minutes(f.get('duree')||'');hd=hf='';}
+  const date=f.get('date')||'',comp=f.get('comp')||'';
+  if(!Object.keys(CATS).includes(cat)||!dateValide(date)||!m)return null;
+  return{cat,date,debut:hd,fin:hf,minutes:m,note:(f.get('note')||'').trim(),hors:(cat==='deleg'||cat==='cse')&&!!f.get('hors'),m2:true,comp:['paie','rec','auto'].includes(comp)?comp:'',verif:!!f.get('verif')};
+}
+document.addEventListener('submit',ev=>{
+  ev.preventDefault();const f=ev.target,a=f.dataset.a,id=+f.dataset.id,fm=new FormData(f);
+  if(a==='ajout'||a==='modif'){
+    const fi=fiche(fm);
+    if(!fi)return info('Saisie non enregistrée : choisissez une catégorie, une date, puis une heure de début et de fin (ou, à défaut, une durée comme 1h30).',true);
+    if(a==='ajout')D.saisies.push({id:D.next++,...fi});else D.saisies=D.saisies.map(x=>x.id===id?{id,...fi}:x);
+    if(!save())return;rendreTout();if(a==='ajout')rSaisie();info(a==='ajout'?'Saisie enregistrée.':'Modifications enregistrées.');
+  }else if(a==='rh'){
+    const c=fm.get('comp')||'';D.saisies.forEach(x=>{if(x.id===id){x.comp=['paie','rec','auto'].includes(c)?c:'';x.verif=!!fm.get('verif');}});
+    if(save()){rRh();info('Enregistré.');}
+  }else if(a==='reglages'){
+    const cr=minutes(fm.get('credit')||'');
+    if(cr===null||cr<0)return info('Réglage non enregistré : indiquez une durée valide (ex. 20h).',true);
+    D.reglages={credit:cr};if(save()){rRecap();info('Réglage enregistré.');}
+  }
+});
+document.addEventListener('change',ev=>{
+  const t=ev.target;
+  if(t.id==='fichier'){restaurer(t.files[0]);t.value='';return;}
+  const k=t.dataset.f;if(!k)return;
+  S[k]=k==='statut'?t.value:+t.value;if(k==='annee'&&!(S.annee>=2000&&S.annee<=2100))S.annee=new Date().getFullYear();
+  rRecap();rHist();rRh();
+});
+document.addEventListener('click',ev=>{
+  const b=ev.target.closest('button');if(!b)return;
+  if(b.dataset.suppr&&confirm('Supprimer cette saisie ?')){D.saisies=D.saisies.filter(x=>x.id!==+b.dataset.suppr);if(save()){rendreTout();info('Saisie supprimée.');}}
+  if('exporter' in b.dataset){
+    const blob=new Blob([JSON.stringify(D,null,4)],{type:'application/json'}),a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);a.download='suivi-temps-'+aujourdhui()+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+    try{localStorage.setItem(KEYSAUV,new Date().toISOString());}catch(x){}rDon();info('Fichier exporté.');
+  }
+});
+async function restaurer(file){
+  if(!file)return;let d;
+  try{d=JSON.parse(await file.text());}catch(x){return info("Ce fichier n'est pas un JSON valide.",true);}
+  if(!d||!Array.isArray(d.saisies))return info('Fichier non reconnu : il doit contenir une liste « saisies ».',true);
+  const n=normaliser(d),bad=d.saisies.length-n.saisies.filter(estValide).length;
+  if(bad)return info(bad+' saisie(s) du fichier sont invalides (date, durée ou catégorie). Restauration annulée.',true);
+  if(!confirm('Remplacer les '+D.saisies.length+' saisies actuelles par les '+n.saisies.length+' saisies du fichier ?'))return;
+  D=n;if(save()){rendreTout();info('Données restaurées : '+n.saisies.length+' saisie(s).');}
+}
+addEventListener('hashchange',onglet);
+rSaisie();rendreTout();onglet();
+if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});
+if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+</script>
+</body>
+</html>
